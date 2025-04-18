@@ -1,0 +1,173 @@
+{% extends 'layout.html' %}
+{% block title %}Uploaded Files{% endblock %}
+{% block content %}
+
+<h4 class="mb-4">📂 Uploaded Files</h4>
+
+{% if role in ['admin', 'write'] %}
+<div class="mb-3">
+  <form id="create-folder-form" class="d-flex" style="max-width: 400px;">
+    <input class="form-control me-2" type="text" name="foldername" placeholder="New Folder" required>
+    <button class="btn btn-primary">Create</button>
+  </form>
+
+  <form id="upload-form" class="d-flex mt-2" enctype="multipart/form-data" style="max-width: 400px;">
+    <input type="file" name="file" class="form-control me-2" required>
+    <button class="btn btn-success">Upload</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="table-responsive">
+  <table class="table table-bordered table-striped">
+    <thead class="table-dark">
+      <tr>
+        <th>Name</th>
+        <th>Size</th>
+        <th>Last Modified</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="file-table-body"></tbody>
+  </table>
+</div>
+
+<!-- Inline Editor Modal -->
+<div id="editor-modal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <form id="edit-form">
+        <div class="modal-header">
+          <h5 class="modal-title">✍️ Editing: <span id="edit-filename"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <textarea id="editor" name="content" class="form-control" rows="20" style="font-family: monospace;"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-success">💾 Save</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const role = "{{ role }}";
+let currentEditingFile = "";
+
+function formatBytes(bytes) {
+  const sizes = ['Bytes','KB','MB','GB','TB'];
+  if (bytes === 0) return '0 Byte';
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return Math.round(bytes / Math.pow(1024, i), 2) + ' ' + sizes[i];
+}
+function formatDate(unix) {
+  return new Date(unix * 1000).toLocaleString();
+}
+
+function loadFiles() {
+  fetch('/api/files', { credentials: 'include' })
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.getElementById('file-table-body');
+      tbody.innerHTML = '';
+      data.forEach(f => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${f.is_folder ? '📁' : '📄'} ${f.name}</td>
+          <td>${f.is_folder ? '-' : formatBytes(f.size)}</td>
+          <td>${formatDate(f.modified)}</td>
+          <td>
+            ${!f.is_folder ? `<a href="/download/${f.name}" class="btn btn-sm btn-success me-1">Download</a>` : ''}
+            ${!f.is_folder && ['admin','edit'].includes(role) ? `<button onclick="deleteFile('${f.name}')" class="btn btn-sm btn-danger me-1">Delete</button>` : ''}
+            ${f.is_folder && role === 'admin' ? `<button onclick="deleteFolder('${f.name}')" class="btn btn-sm btn-danger me-1">Delete Folder</button>` : ''}
+            ${['admin','edit'].includes(role) ? `<button onclick="renameItem('${f.name}')" class="btn btn-sm btn-warning me-1">Rename</button>` : ''}
+            ${!f.is_folder && ['admin','edit','write'].includes(role) ? `<button onclick="openEditor('${f.name}')" class="btn btn-sm btn-outline-primary">Edit</button>` : ''}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    });
+}
+
+function deleteFile(name) {
+  if (confirm("Delete " + name + "?"))
+    fetch(`/delete/${name}`, { method: 'DELETE', credentials: 'include' })
+      .then(r => r.json()).then(alert).then(loadFiles);
+}
+
+function deleteFolder(name) {
+  if (confirm("Delete folder " + name + "?"))
+    fetch('/folder/delete', {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: name })
+    }).then(r => r.json()).then(alert).then(loadFiles);
+}
+
+function renameItem(oldName) {
+  const newName = prompt("Rename to:", oldName);
+  if (newName && newName !== oldName)
+    fetch('/rename', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_name: oldName, new_name: newName })
+    }).then(r => r.json()).then(alert).then(loadFiles);
+}
+
+function openEditor(filename) {
+  fetch(`/download/${filename}`, { credentials: 'include' })
+    .then(res => res.text())
+    .then(content => {
+      currentEditingFile = filename;
+      document.getElementById('edit-filename').textContent = filename;
+      document.getElementById('editor').value = content;
+      new bootstrap.Modal(document.getElementById('editor-modal')).show();
+    })
+    .catch(() => alert("Cannot load file for editing."));
+}
+
+document.getElementById("edit-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const content = document.getElementById("editor").value;
+  fetch(`/edit/${currentEditingFile}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ content })
+  }).then(r => r.json()).then(alert).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('editor-modal')).hide();
+    loadFiles();
+  });
+});
+
+document.getElementById("create-folder-form")?.addEventListener("submit", function (e) {
+  e.preventDefault();
+  const name = this.foldername.value;
+  fetch('/folder/create', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder: name })
+  }).then(res => res.json()).then(alert).then(() => { this.reset(); loadFiles(); });
+});
+
+document.getElementById("upload-form")?.addEventListener("submit", function (e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  fetch('/upload', {
+    method: 'POST',
+    credentials: 'include',
+    body: formData
+  }).then(res => res.json()).then(alert).then(() => { this.reset(); loadFiles(); });
+});
+
+loadFiles();
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,168 @@
+{% extends 'layout.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="row">
+  <!-- File Upload -->
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-success text-white">
+        <h5 class="mb-0">📤 Upload File</h5>
+      </div>
+      <div class="card-body">
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+          <input type="file" name="file" class="form-control mb-3" required>
+          <button class="btn btn-success w-100">Upload</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create User -->
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">👤 Create User</h5>
+      </div>
+      <div class="card-body">
+        <form id="create-user-form">
+          <input class="form-control mb-2" name="username" placeholder="Username" required>
+          <input class="form-control mb-2" name="password" type="password" placeholder="Password" required>
+          <select class="form-select mb-3" name="role">
+            <option value="read">read</option>
+            <option value="write">write</option>
+            <option value="edit">edit</option>
+            <option value="admin">admin</option>
+          </select>
+          <button class="btn btn-primary w-100">Create User</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if session['role'] == 'admin' %}
+  <!-- Edit User -->
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">✏️ Edit User</h5>
+      </div>
+      <div class="card-body">
+        <form id="edit-user-form">
+          <label class="form-label">Select User</label>
+          <select class="form-select mb-2" name="username" id="edit-user-select" required>
+            <option value="">-- Select a user --</option>
+          </select>
+          <input class="form-control mb-2" name="password" type="password" placeholder="New Password (optional)">
+          <select class="form-select mb-3" name="role">
+            <option value="">-- Keep Current Role --</option>
+            <option value="read">read</option>
+            <option value="write">write</option>
+            <option value="edit">edit</option>
+            <option value="admin">admin</option>
+          </select>
+          <button class="btn btn-warning w-100">Update User</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete User -->
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-danger text-white">
+        <h5 class="mb-0">🗑️ Delete User</h5>
+      </div>
+      <div class="card-body">
+        <form id="delete-user-form">
+          <label class="form-label">Select User to Delete</label>
+          <select class="form-select mb-3" name="username" id="delete-user-select" required>
+            <option value="">-- Select a user to delete --</option>
+          </select>
+          <button class="btn btn-danger w-100">Delete User</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+// Create User
+document.getElementById("create-user-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const data = {
+    username: this.username.value,
+    password: this.password.value,
+    role: this.role.value
+  };
+  fetch("/user/create", {
+    method: "POST",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(data => alert(data.message));
+});
+
+{% if session['role'] == 'admin' %}
+// Load user list for admin dropdowns
+fetch('/user/list')
+  .then(res => {
+    if (!res.ok) throw new Error("Not authorized");
+    return res.json();
+  })
+  .then(users => {
+    const editSelect = document.getElementById("edit-user-select");
+    const deleteSelect = document.getElementById("delete-user-select");
+    users.forEach(username => {
+      const opt1 = document.createElement("option");
+      opt1.value = opt1.textContent = username;
+      editSelect.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = opt2.textContent = username;
+      deleteSelect.appendChild(opt2);
+    });
+  })
+  .catch(err => {
+    console.error("User fetch error:", err);
+    alert("⚠️ You must be admin to manage users.");
+  });
+
+// Edit User
+document.getElementById("edit-user-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const data = {
+    username: this.username.value,
+    password: this.password.value,
+    role: this.role.value || null
+  };
+  fetch("/user/edit", {
+    method: "PUT",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(data => alert(data.message));
+});
+
+// Delete User
+document.getElementById("delete-user-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const data = {
+    username: this.username.value
+  };
+  fetch("/user/delete", {
+    method: "DELETE",
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(data => alert(data.message));
+});
+{% endif %}
+</script>
+
+{% endblock %}
+

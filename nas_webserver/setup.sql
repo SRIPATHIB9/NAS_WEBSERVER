@@ -1,0 +1,24 @@
+CREATE DATABASE IF NOT EXISTS nas_server;
+USE nas_server;
+
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role ENUM('read', 'write', 'edit', 'admin') NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS file_metadata (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    filename VARCHAR(255),
+    size BIGINT,
+    owner VARCHAR(50),
+    upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    action VARCHAR(255),
+    username VARCHAR(50),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

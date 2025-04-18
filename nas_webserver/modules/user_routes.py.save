@@ -1,0 +1,114 @@
+from flask import Blueprint, request, jsonify, session, current_app
+from werkzeug.security import generate_password_hash, check_password_hash
+from modules.auth_middleware import login_required
+
+import hashlib
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+user_bp = Blueprint('user', __name__)
+
+
+# Create a new user (admin only)
+@user_bp.route('/user/create', methods=['POST'])
+def create_user():
+    data = request.json
+    username = data['username']
+    password = data['password']  # ❗️Storing plain text — for demo only
+    role = data['role']
+
+    cur = current_app.extensions['mysql'].connection.cursor()
+    cur.execute("SELECT * FROM users WHERE username = %s", [username])
+    existing_user = cur.fetchone()
+
+    if existing_user:
+        return jsonify({'message': 'Username already exists'}), 409
+
+    cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                (username, password, role))
+    current_app.extensions['mysql'].connection.commit()
+    cur.close()
+
+    return jsonify({'message': 'User created successfully'}), 201
+
+def logout():
+    session.clear()
+    return jsonify({'message': 'Logged out successfully'}), 200
+
+@user_bp.route('/user/register', methods=['POST'])
+
+def register_user():
+    data = request.json
+    username = data['username']
+    password = data['password']  
+    role = data.get('role', 'read')
+
+    cur = current_app.extensions['mysql'].connection.cursor()
+    cur.execute("SELECT * FROM users WHERE username = %s", [username])
+    if cur.fetchone():
+        return jsonify({'message': 'Username already exists'}), 409
+
+    cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                (username, password, role))
+    current_app.extensions['mysql'].connection.commit()
+    cur.close()
+
+    return jsonify({'message': 'User registered successfully'}), 201
+# Delete a user (admin only)
+@user_bp.route('/user/delete', methods=['DELETE'])
+@login_required(role='admin')
+def delete_user():
+    data = request.json
+    username = data['username']
+
+    cur = current_app.extensions['mysql'].connection.cursor()
+    cur.execute("DELETE FROM users WHERE username = %s", [username])
+    current_app.extensions['mysql'].connection.commit()
+    cur.close()
+    return jsonify({'message': 'User deleted successfully'}), 200
+
+
+# Edit a user's password and/or role (admin only)
+@user_bp.route('/user/edit', methods=['PUT'])
+@login_required(role='admin')
+def edit_user():
+    data = request.json
+    username = data['username']
+    new_password = data.get('password')
+    new_role = data.get('role')
+
+    cur = current_app.extensions['mysql'].connection.cursor()
+    if new_password:
+        hashed_password = generate_password_hash(new_password)
+        cur.execute("UPDATE users SET password = %s WHERE username = %s", (hashed_password, username))
+    if new_role:
+        cur.execute("UPDATE users SET role = %s WHERE username = %s", (new_role, username))
+    current_app.extensions['mysql'].connection.commit()
+    cur.close()
+
+    return jsonify({'message': 'User updated successfully'}), 200
+
+@user_bp.route('/user/login', methods=['POST'])
+def login():
+    data = request.json
+    username = data['username']
+    password = data['password']
+    print("LOGIN REQUEST:", username, password)
+
+    cur = current_app.extensions['mysql'].connection.cursor()
+    cur.execute("SELECT password, role FROM users WHERE username = %s", [username])
+    user = cur.fetchone()
+    print("DB RESPONSE:", user)
+
+    cur.close()
+
+    if user and user[0] == password:
+        session['username'] = username
+        session['role'] = user[1]
+        print("LOGIN SUCCESSFUL")
+        return jsonify({'message': 'Login successful'}), 200
+
+    print("LOGIN FAILED")
+    return jsonify({'message': 'Invalid credentials'}), 401
+

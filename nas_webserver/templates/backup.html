@@ -1,0 +1,65 @@
+{% extends 'layout.html' %}
+{% block title %}Backup & Restore{% endblock %}
+{% block content %}
+
+<div class="row">
+  <!-- Backup Section -->
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">📦 Create Backup</h5>
+      </div>
+      <div class="card-body">
+        <p>Click the button to generate a .zip backup of all uploaded files.</p>
+        <button id="backup-btn" class="btn btn-warning w-100" onclick="runBackup()">Create Backup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restore Section -->
+  <div class="col-md-6 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">♻️ Restore from Backup</h5>
+      </div>
+      <div class="card-body">
+        <form id="restore-form" action="/backup/restore" method="POST" enctype="multipart/form-data">
+          <div class="mb-3">
+            <input type="file" name="file" accept=".zip" class="form-control" required>
+          </div>
+          <button class="btn btn-secondary w-100">Restore Backup</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function runBackup() {
+  const btn = document.getElementById('backup-btn');
+  btn.disabled = true;
+  btn.textContent = 'Backing up...';
+
+  fetch('/backup/run')
+    .then(res => res.json())
+    .then(data => {
+      alert(`✅ ${data.message}\nFile: ${data.file}`);
+    })
+    .catch(err => {
+      console.error(err);
+      alert("❌ Failed to create backup.");
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = 'Create Backup';
+    });
+}
+
+// Reset restore form after submission
+document.getElementById("restore-form").addEventListener("submit", function() {
+  setTimeout(() => this.reset(), 3000); // small delay to allow upload
+});
+</script>
+
+{% endblock %}
+

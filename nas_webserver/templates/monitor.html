@@ -1,0 +1,48 @@
+{% extends 'layout.html' %}
+{% block title %}System Monitor{% endblock %}
+{% block content %}
+
+<div class="row text-center">
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5>🖥️ CPU Usage</h5>
+        <h3><span id="cpu">--</span>%</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5>🧠 Memory Usage</h5>
+        <h3><span id="mem">--</span>%</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5>💽 Disk Usage</h5>
+        <h3><span id="disk">--</span>%</h3>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function updateStats() {
+  fetch("/monitor/system")
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("cpu").innerText = data.cpu_usage;
+      document.getElementById("mem").innerText = data.memory_usage;
+      document.getElementById("disk").innerText = data.disk_usage;
+    });
+}
+
+// Initial load + refresh every 3 seconds
+updateStats();
+setInterval(updateStats, 3000);
+</script>
+
+{% endblock %}
